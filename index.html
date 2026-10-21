@@ -1,0 +1,146 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Resource Capacity Planner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--bg:#fff;--fg:#1f2430;--mut:#6b7280;--line:#e3e6ec;--hd:#f4f6fa;--acc:#2f5bea;--ok:#cfe8d5;--mid:#f7e3a8;--full:#f2b8b0;--lv:#d9d2f0;--we:#f0f1f4;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#171a21;--fg:#e6e8ee;--mut:#98a0b0;--line:#2d3340;--hd:#1f242d;--acc:#7b9cff;--ok:#27422f;--mid:#58491d;--full:#5c2a25;--lv:#3b3560;--we:#1d2129}}
+html,body{height:100%}body{margin:0;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif;display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+h1{font-size:17px;margin:0 8px 0 0}button,select,input,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px 9px}
+button{cursor:pointer}button.on,button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}button.del{color:#c0392b}
+#st{margin-left:auto;color:var(--mut);font-size:12px}
+#wrap{flex:1;overflow:auto;position:relative}table{border-collapse:separate;border-spacing:0}
+th,td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:center;padding:0;font-size:12px}
+thead th{position:sticky;top:0;background:var(--hd);z-index:2;height:42px}
+.nm{position:sticky;left:0;background:var(--hd);z-index:3;text-align:left;min-width:170px;max-width:170px;padding:4px 8px}
+thead .nm{z-index:4}.nm small{display:block;color:var(--mut);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+td.c{height:40px;cursor:pointer}td.we{background:var(--we);cursor:default}td.c:hover{outline:2px solid var(--acc);outline-offset:-2px}
+td.ok{background:var(--ok)}td.mid{background:var(--mid)}td.full{background:var(--full)}td.lv{background:var(--lv)}td.today,th.today{box-shadow:inset 0 -3px var(--acc)}
+.tt{display:block;font-size:10px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);width:min(560px,94vw);padding:16px}
+dialog::backdrop{background:#0006}label{display:block;margin:8px 0 3px;color:var(--mut);font-size:12px}
+.f input,.f select,.f textarea{width:100%;box-sizing:border-box}.row{display:flex;gap:8px}.row>*{flex:1}
+.item{border:1px solid var(--line);border-radius:8px;padding:8px;margin:6px 0;display:flex;gap:8px;align-items:flex-start}.item div{flex:1}
+.err{color:#c0392b;margin:8px 0;min-height:18px}.lg{display:flex;gap:10px;font-size:11px;color:var(--mut);align-items:center}.lg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:3px;vertical-align:-1px}
+</style></head><body>
+<header><h1>Resource Capacity Planner</h1>
+<button data-v="week">Week</button><button data-v="month">Month</button><button data-v="quarter">3 Months</button>
+<button id="prev">&#9664;</button><button id="today">Today</button><button id="next">&#9654;</button>
+<button class="pri" id="addT">+ Task</button><button id="addL">+ Leave</button>
+<span class="lg"><span><i style="background:var(--ok)"></i>&lt;6h</span><span><i style="background:var(--mid)"></i>6&ndash;8h</span><span><i style="background:var(--full)"></i>full 8.5h</span><span><i style="background:var(--lv)"></i>leave</span></span>
+<button id="so" hidden>Sign out</button><span id="st">Connecting…</span></header>
+<div id="wrap"></div>
+<dialog id="dlg"></dialog>
+<dialog id="lg"><h3>Sign in</h3><div class="f"><label>Email</label><input id="lgem" type="email" autocomplete="username"><label>Password</label><input id="lgpw" type="password" autocomplete="current-password"></div><div class="err" id="lger"></div><div class="row"><button class="pri" id="lgbtn">Sign in</button></div></dialog>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const EMPS=[{"id": "e01", "name": "Aarav Sharma", "skills": "Project Management, Systems Engineering"}, {"id": "e02", "name": "Priya Patel", "skills": "Java, Angular"}, {"id": "e03", "name": "Vikram Singh", "skills": "C++, Matlab/Simulink, Systems Engineering"}, {"id": "e04", "name": "Ananya Reddy", "skills": "Angular, Java"}, {"id": "e05", "name": "Rohan Das", "skills": "Unreal, C++"}, {"id": "e06", "name": "Sneha Kulkarni", "skills": "Systems Engineering, Project Management"}, {"id": "e07", "name": "Amit Verma", "skills": "Java, Angular"}, {"id": "e08", "name": "Divya Nair", "skills": "C++"}, {"id": "e09", "name": "Siddharth Joshi", "skills": "Matlab/Simulink, Systems Engineering"}, {"id": "e10", "name": "Meera Rao", "skills": "Project Management"}, {"id": "e11", "name": "Rahul Malhotra", "skills": "Unreal"}, {"id": "e12", "name": "Neha Gupta", "skills": "Java, Angular"}, {"id": "e13", "name": "Karan Johar", "skills": "C++, Unreal"}, {"id": "e14", "name": "Aditi Rao", "skills": "Matlab/Simulink"}, {"id": "e15", "name": "Vijay Kumar", "skills": "Systems Engineering, Project Management"}, {"id": "e16", "name": "Ritu Shah", "skills": "Angular"}, {"id": "e17", "name": "Sanjay Dutt", "skills": "C++, Java"}, {"id": "e18", "name": "Kriti Sanon", "skills": "Unreal, C++"}, {"id": "e19", "name": "Varun Dhawan", "skills": "Java"}, {"id": "e20", "name": "Alia Bhatt", "skills": "Matlab/Simulink, Systems Engineering"}];const CAP=8.5,SPAN=92;
+let view='month',anchor=mon(new Date()),tasks={},leaves={},db=null,mem=false;
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function pd(s){const[a,b,c]=s.split('-');return new Date(+a,b-1,+c)}
+function mon(d){d=new Date(d.getFullYear(),d.getMonth(),d.getDate());d.setDate(d.getDate()-((d.getDay()+6)%7));return d}
+function addD(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
+const isWE=d=>d.getDay()==0||d.getDay()==6;
+function days(a,b){const o=[];for(let d=pd(a);iso(d)<=b;d=addD(d,1))o.push(iso(d));return o}
+const ename=id=>(EMPS.find(e=>e.id==id)||{}).name||id;
+function leaveOn(e,ds){return Object.values(leaves).find(l=>l.emp==e&&l.start<=ds&&ds<=l.end)}
+function tasksOn(e,ds){return Object.entries(tasks).filter(([k,t])=>t.emp==e&&t.start<=ds&&ds<=t.end).map(([k,t])=>({...t,id:k}))}
+function load(e,ds,skip){return tasksOn(e,ds).filter(t=>t.id!=skip).reduce((s,t)=>s+t.hours,0)}
+function render(){
+ const w={week:150,month:60,quarter:34}[view];const ds=days(iso(anchor),iso(addD(anchor,SPAN-1)));const td=iso(new Date());
+ let h='<table><thead><tr><th class="nm">Resource</th>'+ds.map(x=>{const d=pd(x);return `<th class="${x==td?'today':''}" style="min-width:${w}px;max-width:${w}px">${d.toLocaleDateString('en',{weekday:'short'})}<br>${d.getDate()} ${d.toLocaleDateString('en',{month:'short'})}</th>`}).join('')+'</tr></thead><tbody>';
+ for(const e of EMPS){h+=`<tr><td class="nm"><b>${esc(e.name)}</b><small>${esc(e.skills)}</small></td>`;
+  for(const x of ds){const d=pd(x);if(isWE(d)){h+='<td class="we"></td>';continue}
+   const lv=leaveOn(e.id,x),ts=tasksOn(e.id,x),hr=ts.reduce((s,t)=>s+t.hours,0);
+   const cls=lv?'lv':hr>=CAP?'full':hr>=6?'mid':hr>0?'ok':'';
+   const txt=lv?'Leave':hr?hr+'h':'';
+   h+=`<td class="c ${cls} ${x==td?'today':''}" data-e="${e.id}" data-d="${x}">${txt}${view!='quarter'?ts.map(t=>`<span class="tt">${esc(t.desc)}</span>`).join(''):''}</td>`}
+  h+='</tr>'}
+ $('#wrap').innerHTML=h+'</tbody></table>';
+ document.querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v==view));
+}
+function empOpts(sel){return EMPS.map(e=>`<option value="${e.id}" ${e.id==sel?'selected':''}>${esc(e.name)}</option>`).join('')}
+const dlg=$('#dlg');
+function dayDlg(e,x){
+ const ts=tasksOn(e,x),lv=leaveOn(e,x);
+ dlg.innerHTML=`<h3>${esc(ename(e))} &mdash; ${x}</h3><div>Booked: <b>${ts.reduce((s,t)=>s+t.hours,0)}</b> / ${CAP} h</div>`+
+ (lv?`<div class="item"><div><b>Leave</b> ${lv.start} → ${lv.end}<br>${esc(lv.note)}</div><button class="del" data-dl="${lv.id}">Delete</button></div>`:'')+
+ ts.map(t=>`<div class="item"><div><b>${t.hours}h/day</b> &middot; ${t.start} → ${t.end}<br>${esc(t.desc)}</div><button data-et="${t.id}">Edit</button><button class="del" data-dt="${t.id}">Delete</button></div>`).join('')+
+ `<div class="row" style="margin-top:10px"><button class="pri" data-nt="${e}|${x}">+ Task</button><button data-nl="${e}|${x}">+ Leave</button><button data-x>Close</button></div>`;
+ dlg.showModal()}
+function taskDlg(e,x,t){
+ t=t||{emp:e,start:x,end:x,hours:4,desc:''};
+ dlg.innerHTML=`<h3>${t.id?'Edit':'New'} task</h3><div class="f"><label>Employee</label><select id="fe">${empOpts(t.emp)}</select>
+ <div class="row"><div><label>Start</label><input type="date" id="fs" value="${t.start}"></div><div><label>End (spans multiple days)</label><input type="date" id="fn" value="${t.end}"></div><div><label>Hours / working day</label><input type="number" id="fh" step="0.25" min="0.25" max="${CAP}" value="${t.hours}"></div></div>
+ <label>Task description</label><textarea id="fd" rows="3">${esc(t.desc)}</textarea></div><div class="err" id="er"></div>
+ <div class="row"><button class="pri" data-st="${t.id||''}">Save</button><button data-x>Cancel</button></div>`;dlg.showModal()}
+function leaveDlg(e,x){
+ dlg.innerHTML=`<h3>Mark leave</h3><div class="f"><label>Employee</label><select id="fe">${empOpts(e)}</select>
+ <div class="row"><div><label>From</label><input type="date" id="fs" value="${x}"></div><div><label>To</label><input type="date" id="fn" value="${x}"></div></div>
+ <label>Note (optional)</label><input id="fd" placeholder="e.g. Annual leave"></div><div class="err" id="er"></div>
+ <div class="row"><button class="pri" data-sl>Save</button><button data-x>Cancel</button></div>`;dlg.showModal()}
+const SUPABASE_URL='https://fundpnifobnfritjnkjn.supabase.co',SUPABASE_KEY='sb_publishable_HsD01jbaumGXQEFt8Gs16w_2v3yzhfE',TBL={tasks:'rp_tasks',leaves:'rp_leaves'};let sb=null,pend=0;
+function sbErr(e){return 'Sync stopped ('+((e&&e.message)||e)+')'}
+async function sbUpsert(col,id,o){pend++;try{
+ const row=col=='tasks'?{id,emp:o.emp,start_date:o.start,end_date:o.end,hours:o.hours,description:o.desc}:{id,emp:o.emp,start_date:o.start,end_date:o.end,note:o.note};
+ const{error}=await sb.from(TBL[col]).upsert(row);if(error)throw error}finally{pend--}}
+async function sbDelete(col,id){pend++;try{const{error}=await sb.from(TBL[col]).delete().eq('id',id);if(error)throw error}finally{pend--}}
+async function sbLoad(){
+ const[t,l]=await Promise.all([sb.from('rp_tasks').select('*'),sb.from('rp_leaves').select('*')]);
+ if(t.error)throw t.error;if(l.error)throw l.error;
+ if(pend>0)return;
+ for(const k in tasks)delete tasks[k];for(const k in leaves)delete leaves[k];
+ for(const r of t.data)tasks[r.id]={emp:r.emp,start:r.start_date,end:r.end_date,hours:Number(r.hours),desc:r.description||''};
+ for(const r of l.data)leaves[r.id]={emp:r.emp,start:r.start_date,end:r.end_date,note:r.note||''};
+ render()}
+function lsSave(){try{localStorage.setItem('rcp_local',JSON.stringify({tasks,leaves}))}catch(e){}}
+function lsLoad(){try{const d=JSON.parse(localStorage.getItem('rcp_local')||'null');if(d){Object.assign(tasks,d.tasks||{});Object.assign(leaves,d.leaves||{})}}catch(e){}}
+async function put(col,id,o){
+ const store=col=='tasks'?tasks:leaves,old=store[id];
+ store[id]=o;render();
+ try{if(db){await sbUpsert(col,id,o);$('#st').textContent='Saved'}else{lsSave();$('#st').textContent='Saved in this browser only (database not connected)'}}
+ catch(e){if(old)store[id]=old;else delete store[id];render();throw e}}
+async function rm(col,id){
+ const store=col=='tasks'?tasks:leaves,old=store[id];
+ try{if(db)await sbDelete(col,id);delete store[id];if(!db)lsSave();render();$('#st').textContent=db?'Saved':'Saved in this browser only (database not connected)'}
+ catch(e){if(old)store[id]=old;render();alert('Could not delete: '+(e.message||e.code))}}
+function watch(){
+ let busy=false;
+ const pull=async()=>{if(busy)return;busy=true;try{await sbLoad();$('#st').textContent='Synced'}catch(e){$('#st').textContent=sbErr(e)}finally{busy=false}};
+ pull();setInterval(()=>{if(!document.hidden)pull()},30000)}
+const nid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+async function saveTask(id){
+ const e=$('#fe').value,s=$('#fs').value,n=$('#fn').value,h=parseFloat($('#fh').value),d=$('#fd').value.trim(),er=$('#er');
+ if(!s||!n||n<s)return er.textContent='Choose a valid date range.';if(!(h>0))return er.textContent='Enter hours greater than 0.';if(!d)return er.textContent='Please enter a task description.';
+ if(h>CAP)return er.textContent=`A single task cannot exceed ${CAP} hours per day.`;
+ for(const x of days(s,n)){if(isWE(pd(x)))continue;
+  if(leaveOn(e,x))return er.textContent=`${ename(e)} is on leave on ${x}.`;
+  const tot=load(e,x,id)+h;if(tot>CAP+1e-9)return er.textContent=`Not allowed: ${x} would total ${tot}h (max ${CAP}h; ${(CAP-load(e,x,id)).toFixed(2)}h free).`}
+ try{await put('tasks',id||nid(),{emp:e,start:s,end:n,hours:h,desc:d});dlg.close()}catch(x){er.textContent='Could not save: '+(x.message||x.code)}}
+async function saveLeave(){
+ const e=$('#fe').value,s=$('#fs').value,n=$('#fn').value,er=$('#er');if(!s||!n||n<s)return er.textContent='Choose a valid date range.';
+ for(const x of days(s,n))if(!isWE(pd(x))&&load(e,x)>0)return er.textContent=`${x} already has tasks booked; move them before marking leave.`;
+ try{await put('leaves',nid(),{emp:e,start:s,end:n,note:$('#fd').value.trim()});dlg.close()}catch(x){er.textContent='Could not save: '+(x.message||x.code)}}
+document.addEventListener('click',async ev=>{const b=ev.target.closest('button,td.c');if(!b)return;const D=b.dataset;
+ if(b.matches('td.c'))return dayDlg(D.e,D.d);
+ if(D.v){view=D.v;render()}else if(b.id=='prev'){anchor=addD(anchor,-7);render()}else if(b.id=='next'){anchor=addD(anchor,7);render()}
+ else if(b.id=='today'){anchor=mon(new Date());render();$('#wrap').scrollLeft=0}
+ else if(b.id=='addT')taskDlg(EMPS[0].id,iso(new Date()));else if(b.id=='addL')leaveDlg(EMPS[0].id,iso(new Date()));
+ else if('x' in D)dlg.close();else if(D.nt){const[a,c]=D.nt.split('|');taskDlg(a,c)}else if(D.nl){const[a,c]=D.nl.split('|');leaveDlg(a,c)}
+ else if(D.et)taskDlg(0,0,{...tasks[D.et],id:D.et});else if(D.dt){await rm('tasks',D.dt);dlg.close()}else if(D.dl){await rm('leaves',D.dl);dlg.close()}
+ else if('st' in D)saveTask(D.st||null);else if('sl' in D)saveLeave()});
+const lg=$('#lg');lg.addEventListener('cancel',e=>e.preventDefault());
+function showLogin(msg){$('#lger').textContent=msg||'';$('#so').hidden=true;if(!lg.open)lg.showModal()}
+function startApp(){db=sb;if(lg.open)lg.close();$('#so').hidden=false;$('#st').textContent='Loading…';if(!window._w){window._w=1;watch()}else{sbLoad().then(()=>{$('#st').textContent='Synced'}).catch(e=>{$('#st').textContent=sbErr(e)})}}
+$('#lgbtn').addEventListener('click',async()=>{
+ const email=$('#lgem').value.trim(),password=$('#lgpw').value;if(!email||!password)return $('#lger').textContent='Enter email and password.';
+ $('#lgbtn').disabled=true;const{error}=await sb.auth.signInWithPassword({email,password});$('#lgbtn').disabled=false;
+ if(error)return $('#lger').textContent=error.message;$('#lgpw').value='';startApp()});
+$('#lgpw').addEventListener('keydown',e=>{if(e.key=='Enter')$('#lgbtn').click()});
+$('#so').addEventListener('click',async()=>{await sb.auth.signOut();for(const k in tasks)delete tasks[k];for(const k in leaves)delete leaves[k];db=null;render();showLogin()});
+(async()=>{render();
+ if(!window.supabase){$('#st').textContent='Could not load the Supabase library (check your internet connection)';return}
+ sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+ const{data}=await sb.auth.getSession();
+ if(data&&data.session)startApp();else showLogin()})();
+</script></body></html>
